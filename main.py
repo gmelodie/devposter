@@ -1,8 +1,8 @@
+import asyncio
 import datetime
 import json
 import os
 import requests
-import sched
 import time
 
 def get_scheduled_date():
@@ -15,7 +15,6 @@ def get_scheduled_date():
     minute = int(input('Minute: '))
 
     #TODO: queue with all schedules
-    #TODO: error check (earlier dates)
     scheduled_date = datetime.datetime(year, month, day, hour, minute, \
                                        tzinfo=datetime.timezone.utc)
     print('Scheduled for', scheduled_date)
@@ -38,11 +37,20 @@ def get_article_to_publish(api_key):
     return chosen_article['id']
 
 
-def publish_article(api_key, article_id: str):
+async def publish_article(api_key, article_id: str, scheduled_date):
+    #TODO: error check (earlier dates)
+    await asyncio.sleep(scheduled_date - datetime.datetime.utcnow().timestamp())
     publish = requests.put('https://dev.to/api/articles/'+article_id+'/',\
                             headers={'api_key': api_key, 'content-type': 'application/json'},\
                             data=json.dumps({'published': 'true'}))
     print(publish.json())
+
+
+async def receive_schedule_requests(api_key):
+    while True:
+        chosen_article_id = get_article_to_publish(api_key)
+        scheduled_date = get_scheduled_date()
+        asyncio.get_event_loop().create_task(publish_article(api_key, str(chosen_article_id), scheduled_date))
 
 
 if __name__ == '__main__':
@@ -52,11 +60,8 @@ if __name__ == '__main__':
         print("Error: DEV_API key not set")
         exit(0)
 
-    chosen_article_id = get_article_to_publish(api_key)
-    scheduled_date = get_scheduled_date()
-
-    poster = sched.scheduler(time.time, time.sleep)
-    poster.enterabs(scheduled_date, 1, publish_article, argument=(api_key, str(chosen_article_id)))
-    poster.run()
+    loop = asyncio.get_event_loop()
+    loop.run_forever()
+    asyncio.run(receive_schedule_requests(api_key))
 
 
