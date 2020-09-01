@@ -5,23 +5,27 @@ import os
 import requests
 import time
 
-def get_scheduled_date():
-    year = int(input('Year: '))
-    month = int(input('Month: '))
-    day = int(input('Day: '))
-    hour = int(input('Hour (UTC): '))
+def _get_scheduled_date():
+    #TODO: uncomment
+    # year = int(input('Year: '))
+    # month = int(input('Month: '))
+    # day = int(input('Day: '))
+    # hour = int(input('Hour (UTC): '))
 
     #FIXME: remove minute (only for testing)
     minute = int(input('Minute: '))
 
     #TODO: queue with all schedules
-    scheduled_date = datetime.datetime(year, month, day, hour, minute, \
+    #TODO: remove test datetime
+    # scheduled_date = datetime.datetime(year, month, day, hour, minute, \
+    #                                    tzinfo=datetime.timezone.utc)
+    scheduled_date = datetime.datetime(2020, 9, 1, 19, minute, \
                                        tzinfo=datetime.timezone.utc)
     print('Scheduled for', scheduled_date)
     return scheduled_date.timestamp()
 
 
-def get_article_to_publish(api_key):
+def _get_article_to_publish(api_key):
     unpublished = requests.get('https://dev.to/api/articles/me/unpublished',\
                                 headers={'api_key': api_key})
     # TODO: check for errors
@@ -37,9 +41,15 @@ def get_article_to_publish(api_key):
     return chosen_article['id']
 
 
-async def publish_article(api_key, article_id: str, scheduled_date):
-    #TODO: error check (earlier dates)
-    await asyncio.sleep(scheduled_date - datetime.datetime.utcnow().timestamp())
+async def _publish_article(api_key, article_id: str, scheduled_date):
+    print("trying to publish article ", article_id)
+    time_until_schedule = scheduled_date - datetime.datetime.utcnow().timestamp()
+    if time_until_schedule < 0:
+        raise ValueError("Scheduled for some time in the past")
+
+    print(f"sleeping {time_until_schedule} seconds")
+    await asyncio.sleep(time_until_schedule)
+
     publish = requests.put('https://dev.to/api/articles/'+article_id+'/',\
                             headers={'api_key': api_key, 'content-type': 'application/json'},\
                             data=json.dumps({'published': 'true'}))
@@ -47,10 +57,14 @@ async def publish_article(api_key, article_id: str, scheduled_date):
 
 
 async def receive_schedule_requests(api_key):
-    while True:
-        chosen_article_id = get_article_to_publish(api_key)
-        scheduled_date = get_scheduled_date()
-        asyncio.get_event_loop().create_task(publish_article(api_key, str(chosen_article_id), scheduled_date))
+    for i in range(2):
+        chosen_article_id = _get_article_to_publish(api_key)
+        scheduled_date = _get_scheduled_date()
+        asyncio.create_task(_publish_article(api_key, str(chosen_article_id), scheduled_date))
+
+    chosen_article_id = _get_article_to_publish(api_key)
+    scheuled_date = _get_scheduled_date()
+    await _publish_article(api_key, str(chosen_article_id), scheduled_date)
 
 
 if __name__ == '__main__':
@@ -60,8 +74,6 @@ if __name__ == '__main__':
         print("Error: DEV_API key not set")
         exit(0)
 
-    loop = asyncio.get_event_loop()
-    loop.run_forever()
     asyncio.run(receive_schedule_requests(api_key))
 
 
