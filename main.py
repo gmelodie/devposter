@@ -2,28 +2,24 @@ import threading, queue, datetime, time
 import json
 import os
 import requests
+import aiofiles
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
+class ScheduleRequest(BaseModel):
+    article_id: str
+    api_key: str
+    date: str
+    time: str
+
+app = FastAPI()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="static")
 
 posts = queue.PriorityQueue()
-
-
-def _get_scheduled_date():
-    # TODO: uncomment
-    # year = int(input('Year: '))
-    # month = int(input('Month: '))
-    # day = int(input('Day: '))
-    # hour = int(input('Hour (UTC): '))
-
-    #FIXME: remove minute (only for testing)
-    minute = int(input('Minute: '))
-
-    #TODO: queue with all schedules
-    #TODO: remove test datetime
-    # scheduled_date = datetime.datetime(year, month, day, hour, minute, \
-    #                                    tzinfo=datetime.timezone.utc)
-    scheduled_date = datetime.datetime(2020, 9, 4, 15, minute)
-    print('Scheduled for', scheduled_date.timestamp())
-    return scheduled_date.timestamp()
 
 
 def _get_article_to_publish(api_key):
@@ -49,7 +45,6 @@ def _publish_article(api_key, article_id: str, scheduled_date):
     print(publish.json())
 
 
-
 def poster():
     while True:
         (scheduled_date, api_key, article_id) = posts.get()
@@ -67,6 +62,27 @@ def poster():
         time.sleep(5)
 
 
+@app.post('/schedule/')
+async def schedule_post(schedule_request: ScheduleRequest):
+
+    # Convert str to datetime object
+    scheduled_datetime_str = schedule_request.date + schedule_request.time
+    scheduled_datetime = datetime.datetime.strptime(scheduled_datetime_str, '%Y-%m-%d%I:%M%p')
+
+    # Datetime needs to be timestamp
+    scheduled_datetime = scheduled_datetime.timestamp()
+
+    # Add scheduled post to queue
+    posts.put((scheduled_datetime, schedule_request.api_key, schedule_request.article_id), scheduled_datetime)
+
+    return f'Scheduled for {scheduled_datetime}'
+
+
+@app.get('/')
+async def index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
 if __name__ == '__main__':
     # TODO: use oauth instead
     api_key = os.environ.get('DEV_API')
@@ -77,8 +93,8 @@ if __name__ == '__main__':
     # turn-on the worker thread
     threading.Thread(target=poster, daemon=True).start()
 
-    while True:
-        article_id = str(_get_article_to_publish(api_key))
-        scheduled_date = _get_scheduled_date()
-        posts.put((scheduled_date, api_key, article_id), scheduled_date)
+    # while True:
+    #     article_id = str(_get_article_to_publish(api_key))
+    #     scheduled_date = _get_scheduled_date()
+    #     posts.put((scheduled_date, api_key, article_id), scheduled_date)
 

@@ -1,0 +1,16 @@
+<head>
+  <link rel="stylesheet" href="static/index.css">
+</head>
+
+<body class="masthead" role="img" aria-label="Devposter">
+  <h1>
+    Devposter
+  </h1>
+  <form id="form1" method="post" action="https://devposter.herokuapp.com/schedule/">
+    <input type="text" name="article_id" placeholder="Article ID">
+    <input type="text" name="api_key" placeholder="Your dev.to API Key">
+    <input type="date" name="date">
+    <input type="time" name="time" value="13:00">
+  </form>
+  <button type="submit" value="Submit" form="form1"> Schedule post! </button>
+</body>
